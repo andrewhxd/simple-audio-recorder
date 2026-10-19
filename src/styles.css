@@ -1,0 +1,141 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --accent: #d93025;
+  --line: #8884;
+  --border: #888a;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 1.5rem;
+}
+
+/* 16px text keeps iPhone from zooming in when a dropdown is tapped.
+   An explicit border and background make iPhone and Android draw these the same way. */
+button,
+select,
+input {
+  font: inherit;
+  font-size: 1rem;
+  height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  color: CanvasText;
+  background-color: Canvas;
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.5;
+}
+
+button {
+  padding: 0 1.25rem;
+}
+
+select,
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+}
+
+/* Leave room on the right so long text stops before the dropdown arrow. */
+select {
+  padding-right: 2rem;
+}
+
+/* Inputs sit on their own line above the row of controls below them. */
+input {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.record {
+  width: 100%;
+  height: 4rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  border: none;
+  color: white;
+  background-color: var(--accent);
+}
+
+.record.recording {
+  background-color: #333;
+}
+
+audio {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+/* Space between a field and the next label in the same section. */
+input + label {
+  margin-top: 1rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  opacity: 0.7;
+}
+
+.error {
+  color: var(--accent);
+}
+
+.danger {
+  color: var(--accent);
+}
+
+/* The bars are drawn in this element's text color. */
+.waveform {
+  display: block;
+  width: 100%;
+  height: 4rem;
+  margin-top: 1rem;
+  color: var(--accent);
+}
+
+.confirm {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.confirm p {
+  margin: 0 0 0.75rem;
+}

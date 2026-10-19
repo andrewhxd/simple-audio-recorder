@@ -1,0 +1,118 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This is a public demo with no sign-in (requested by the owner), so every request is
+// unauthenticated. Anyone can list, play, save, and delete recordings. Because of that,
+// these rules strictly validate what can be written and deny everything else.
+//
+// Collection: recordings
+// Document ID: auto-generated
+// Fields (all required, no others, immutable after create):
+//   - name: string (1-100 chars) - display name, e.g. "10/13/2026, 9:30:05 AM"
+//   - fileName: string (1-100 chars) - e.g. "Recording 2026-10-13 09.30.05"
+//   - type: string (1-100 chars, starts with "audio/") - e.g. "audio/mp4; codecs=mp4a.40.2"
+//   - size: int (1-5,000,000) - total audio bytes
+//   - chunkCount: int (1-5) - number of chunk documents, ceil(size / 1,000,000)
+//   - createdAt: timestamp - server time of the save
+//
+// Subcollection: recordings/{recordingId}/chunks
+// Document ID: "0" to "4" (chunk index)
+// Fields (required, no others, immutable):
+//   - data: bytes (1-1,000,000) - one piece of the audio
+//
+// The app saves a recording and all its chunks in one batch, and deletes them in one batch.
+// It lists recordings with orderBy('createdAt', 'desc') and reads chunks by ID.
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function recordingPath(recordingId) {
+      return /databases/$(database)/documents/recordings/$(recordingId);
+    }
+
+    function chunkPath(recordingId, index) {
+      return /databases/$(database)/documents/recordings/$(recordingId)/chunks/$(string(index));
+    }
+
+    function isStringOfLength(value, minLen, maxLen) {
+      return value is string && value.size() >= minLen && value.size() <= maxLen;
+    }
+
+    // True if chunk `index` will exist after this batch (or isn't needed for this many chunks).
+    function chunkWrittenIfNeeded(recordingId, chunkCount, index) {
+      return index >= chunkCount || existsAfter(chunkPath(recordingId, index));
+    }
+
+    // True if chunk `index` will be gone after this batch (or never existed for this many chunks).
+    function chunkDeletedIfPresent(recordingId, chunkCount, index) {
+      return index >= chunkCount || !existsAfter(chunkPath(recordingId, index));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidRecording(recordingId, data) {
+      let fields = ['name', 'fileName', 'type', 'size', 'chunkCount', 'createdAt'];
+      return data.keys().hasAll(fields) && data.keys().hasOnly(fields)
+        && isStringOfLength(data.name, 1, 100)
+        && isStringOfLength(data.fileName, 1, 100)
+        && isStringOfLength(data.type, 1, 100) && data.type.matches('^audio/.*')
+        && data.size is int && data.size >= 1 && data.size <= 5000000
+        && data.chunkCount is int && data.chunkCount == math.ceil(data.size / 1000000.0) // .0: whole-number division would round down
+        && data.createdAt == request.time
+        // Every chunk must be saved in the same batch, so no recording exists without its audio.
+        && chunkWrittenIfNeeded(recordingId, data.chunkCount, 0)
+        && chunkWrittenIfNeeded(recordingId, data.chunkCount, 1)
+        && chunkWrittenIfNeeded(recordingId, data.chunkCount, 2)
+        && chunkWrittenIfNeeded(recordingId, data.chunkCount, 3)
+        && chunkWrittenIfNeeded(recordingId, data.chunkCount, 4);
+    }
+
+    function isValidChunk(recordingId, chunkId, data) {
+      return data.keys().hasAll(['data']) && data.keys().hasOnly(['data'])
+        && data.data is bytes && data.data.size() >= 1 && data.data.size() <= 1000000
+        && chunkId.matches('^[0-4]$')
+        // Chunks can only be written together with a brand-new recording, never added later.
+        && !exists(recordingPath(recordingId))
+        && existsAfter(recordingPath(recordingId))
+        && int(chunkId) < getAfter(recordingPath(recordingId)).data.chunkCount;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /recordings/{recordingId} {
+      // Public by request: the demo has no sign-in.
+      allow read: if true;
+      allow create: if isValidRecording(recordingId, request.resource.data);
+      allow update: if false; // recordings never change after saving
+      // Delete only together with all of its chunks.
+      allow delete: if chunkDeletedIfPresent(recordingId, resource.data.chunkCount, 0)
+        && chunkDeletedIfPresent(recordingId, resource.data.chunkCount, 1)
+        && chunkDeletedIfPresent(recordingId, resource.data.chunkCount, 2)
+        && chunkDeletedIfPresent(recordingId, resource.data.chunkCount, 3)
+        && chunkDeletedIfPresent(recordingId, resource.data.chunkCount, 4);
+
+      match /chunks/{chunkId} {
+        allow read: if true;
+        allow create: if isValidChunk(recordingId, chunkId, request.resource.data);
+        allow update: if false;
+        // Delete only together with the recording it belongs to.
+        allow delete: if !existsAfter(recordingPath(recordingId));
+      }
+    }
+
+    // Everything else is denied by default.
+  }
+}
